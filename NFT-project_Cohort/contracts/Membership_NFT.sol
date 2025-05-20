@@ -20,13 +20,11 @@ contract NFT is ERC721URIStorage {
 // inicijalizacija adresa
 
 address public DAOad; //adresa DAO
-address payable public ownerWallet; // adresa za withdrawal novca
 
 
 // deployovanje contracta i mintovanje prvog NFT-a
 constructor (address _DAOad, address _creator) ERC721("DAO Membership","DAOM"){
 
-    ownerWallet = payable (msg.sender); // postavljanje walleta za withrdawal
 
     // mintovanje prvog NFT-a DAO adresi
     DAOad = _DAOad; // storuje adresu za koriscenje u contractu
