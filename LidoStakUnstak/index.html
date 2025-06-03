@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Lido Task</title>
+  <script src="https://cdn.ethers.io/lib/ethers-5.7.2.umd.min.js"></script> <!-- import za ethers.js -->
+</head>
+<body>
+  <h1>Connect to Lido(Sepolia)</h1>
+  <button id="connectBtn">Connect Wallet</button> <!-- button za connectovanje na MetaMask-->
+
+  <!-- Display stakedETH Balance -->
+  <h3>Your stakedETH Balance: <span id="stakedethBalance">-</span> ETH</h3> <!-- prikazuje ETH balance korisnika -->
+
+  <!--Stake forma-->
+  <form id="stakeForm">
+    <label for="ethAmount">ETH for staking:</label>
+    <input type="number" id="ethAmount" step="0.0001" min="0" required />
+    <button type="submit">Stake ETH</button>
+  </form>
+
+  <!-- Simulacija Unstake dela -->
+  <h3>Unstake (Simulation)</h3>
+  <button onclick="simulateUnstake()">Simulate Unstake</button> <!-- simulira unstake -->
+  <p id="unstakeInfo"></p> <!-- prikazuje info o unstake -->
+
+  <!-- Testing Instructions -->
+  <h3>Testing Notes</h3>
+  <p>Use <strong>Sepolia Testnet</strong> with test ETH. After staking, your stakedETH balance updates automatically.</p>
+  <p>To unstake, Lido uses a <em>withdrawal queue</em> — not instant redemption. You can also use secondary markets like Curve or 1inch.</p>
+  <p>For advanced testing, run a mainnet fork using tools like Hardhat or Foundry and impersonate stakedETH holders.</p>
+
+  <script>
+    const LIDO_ADDRESS = "0xFdDf38947aFB03C621C71b06C9C70bce73f12999"; // hardcodovana adresa za LIDO na bc-u
+    const STAKED_ETH_ADDRESS = "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84"; // adresa stakedETH tokena na mainnet-u
+
+    // ABI za lido, koji omogucava submit form, tacnije omogucava submit() sto
+    // nam daje sposbnost stakeovanja sto je i poenta ovog taska.
+    const lidoAbi = [ 
+      {
+        inputs: [{ internalType: "address", name: "_referral", type: "address" }],
+        name: "submit",
+        outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+        stateMutability: "payable",
+        type: "function",
+      },
+    ];
+
+    // ABI za stakedETH koji omogucava da procitamo balance  korisnika
+    const stakedethAbi = [
+      {
+        constant: true,
+        inputs: [{ name: "account", type: "address" }],
+        name: "balanceOf",
+        outputs: [{ name: "", type: "uint256" }],
+        type: "function",
+      }
+    ];
+
+    // omogucava varijablama da budu global zbog vise formi koje su potrebne
+    let lidoContract;
+    let stakedethContract;
+    let signer;
+    let userAddress;
+
+    // funkcija za connectovanje metamaska, asinhrona je iz razloga sto je neophodno da vraca promise pri pozivu f-je
+    // await window.ethereum.request({ method: "eth_requestAccounts" }); zbog await keyworda.
+    async function connect() {
+      if (!window.ethereum) {
+        alert("MetaMask is required");
+        return; // ukoliko se metamask ne connectuje zavrsi se exequcija code-a.
+      }
+
+      // salje request metamasku za dozvolu za pristup acc-u. User ce dobiti POPUP na kome prihvata ili odbija access.
+      await window.ethereum.request({ method: "eth_requestAccounts" }); 
+
+      // kreira ether.js providera koji omogucava code-u da cita bc data i salje transakcije preko
+      // Metamaska, koriscenjem MetaMask walleta koji je injectovan u browser.
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+
+      // definisanje helper objecta koji signuje transakcije u ime usera.
+      signer = provider.getSigner();
+      userAddress = await signer.getAddress();
+
+      lidoContract = new ethers.Contract(LIDO_ADDRESS, lidoAbi, signer);
+      stakedethContract = new ethers.Contract(STAKED_ETH_ADDRESS, stakedethAbi, signer); // instanciranje stakedETH contracta
+
+      console.log("Connected to Lido contract:", lidoContract.address);
+      alert("Wallet connected. Check console for contract address.");
+
+      updateStakedethBalance(); // prikazi balans kada se wallet konektuje
+    }
+
+    // funkcija za update stakedETH balansa
+    async function updateStakedethBalance() {
+      if (!stakedethContract || !userAddress) return;
+      try {
+        const balance = await stakedethContract.balanceOf(userAddress);
+        document.getElementById("stakedethBalance").innerText = ethers.utils.formatEther(balance);
+      } catch (error) {
+        console.error("Failed to read balance:", error);
+        document.getElementById("stakedethBalance").innerText = "Error";
+      }
+    }
+
+    // omogucava runnovanje connect f-je pritiskom na button.
+    document.getElementById("connectBtn").onclick = connect;
+
+    // omogucava runnovanje funkcije za stakeovanje submitovanjem u formi
+    document.getElementById("stakeForm").onsubmit = async function(event) {
+      event.preventDefault(); // preventuje reloadovanje page-a
+
+      // provera da li je contract aktivan, ukoliko nije izlazi se iz f-je
+      if (!lidoContract) {
+        alert("Please connect your wallet.");
+        return;
+      }
+
+      // validira da je korisnik uneo validan input(broj veci od 0)
+      const ethAmount = document.getElementById("ethAmount").value;
+      if (ethAmount <= 0) {
+        alert("Input valid amount in ETH.");
+        return;
+      }
+
+      // try-catch za stakovanje
+      try {
+        const tx = await lidoContract.submit(
+          "0x0000000000000000000000000000000000000000",
+          { value: ethers.utils.parseEther(ethAmount) }
+        );
+
+        alert("Transaction sent: " + tx.hash);
+
+        await tx.wait();
+        alert("Stake submitted!");
+
+        updateStakedethBalance(); // update-uje balance nakon stakeovanja
+
+      } catch (error) {
+        alert("An error in transaction has occurred :(");
+      }
+    };
+
+    // simulira unstake Lido funkcionalnost
+    function simulateUnstake() {
+      const msg = `
+Lido currently does NOT support instant unstaking on-chain.
+1. You can initiate a withdrawal request (if available).
+2. Or, use DEXs like Curve, 1inch, or Uniswap to swap stakedETH for ETH.
+This demo assumes you use the withdrawal queue (simulated).`;
+      document.getElementById("unstakeInfo").innerText = msg;
+    }
+
+  </script>
+</body>
+</html>
