@@ -145,9 +145,7 @@
     function simulateUnstake() {
       const msg = `
 Lido currently does NOT support instant unstaking on-chain.
-1. You can initiate a withdrawal request (if available).
-2. Or, use DEXs like Curve, 1inch, or Uniswap to swap stakedETH for ETH.
-This demo assumes you use the withdrawal queue (simulated).`;
+1. You can initiate a withdrawal request.`;
       document.getElementById("unstakeInfo").innerText = msg;
     }
 
