@@ -14,3 +14,5 @@ for i in range(counter):
 
 for meta in rez:
     print(json.dumps(meta,indent=4))
+
+print("Hello world")
